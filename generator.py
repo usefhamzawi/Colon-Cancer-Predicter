@@ -2,9 +2,16 @@ import numpy as np
 from datallm import DataLLM
 
 # Initialize DataLLM client with API key
-API_KEY = 'your_api_key'
+API_KEY = 'your-api-key'
 BASE_URL = 'https://data.mostly.ai'
 datallm = DataLLM(api_key=API_KEY, base_url=BASE_URL)
+
+# Check if the API key is valid by listing available models
+try:
+    models = datallm.models()
+    print("API key is valid. Available models:", models)
+except Exception as e:
+    print("Failed to validate API key:", e)
 
 # Define the mappings and probabilities for cases and controls
 probabilities = {

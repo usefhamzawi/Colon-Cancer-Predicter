@@ -1,7 +1,3 @@
-Here’s a sample README file for your synthetic data generation project focused on colorectal cancer research:
-
----
-
 # Synthetic Data Generation for Colorectal Cancer Study
 
 ## Overview
