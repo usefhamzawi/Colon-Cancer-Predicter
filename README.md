@@ -22,8 +22,8 @@ This project generates synthetic datasets for a colorectal cancer study using th
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/colorectal-cancer-synthetic-data.git
-   cd colorectal-cancer-synthetic-data
+   git clone https://github.com/yourusername/Colon-Cancer-Predicter.git
+   cd Colon-Cancer-Predicter
    ```
 
 2. Install the required packages:
@@ -32,16 +32,16 @@ This project generates synthetic datasets for a colorectal cancer study using th
    pip install numpy datallm
    ```
 
-3. Replace `'your_api_key'` in the code with your actual API key from MostlyAI.
+3. Replace `'your-api-key'` in the code with your actual API key from MostlyAI.
 
 ## Usage
 
-1. Open the main script (e.g., `data_generator.py`).
+1. Open the main script (e.g., `generatorV2.py`).
 2. Adjust the `probabilities` dictionary to fit your study requirements, modifying means and standard deviations as needed.
 3. Run the script:
 
    ```bash
-   python data_generator.py
+   python generatorV2.py
    ```
 
 4. The synthetic dataset will be saved as `data.csv` in the specified output directory.

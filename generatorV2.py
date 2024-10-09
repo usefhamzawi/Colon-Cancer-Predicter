@@ -3,7 +3,7 @@ import pandas as pd
 from datallm import DataLLM
 
 # Initialize DataLLM client with API key
-API_KEY = 'zpka_70513e3546da4445acf8834922ed1f0b_7f9500b4'
+API_KEY = 'your-api-key'
 BASE_URL = 'https://data.mostly.ai'
 datallm = DataLLM(api_key=API_KEY, base_url=BASE_URL)
 
@@ -68,6 +68,7 @@ diabetes_categories = [0, 1] # 0 for without diabetes 1 for with diabetes
 famhx1_categories = [0, 1] # 0 for without family history 1 for with family history
 races = [0, 1, 2, 3, 4] # 0 White, 1 Black, 2 Asian/PI, 3 American Indian, 4 Hispanic
 
+# Create intial mock for the dataset
 df = datallm.mock(
     n=100,
     data_description="Synthetic dataset for colorectal cancer study",
@@ -86,6 +87,7 @@ df = datallm.mock(
     }
 )
 
+# Function to convert normal means and stdvs to log-normal scale
 def normal_to_lognormal(mu_X, sigma_X):
     """
     Convert normal distribution parameters to lognormal distribution parameters.
@@ -103,10 +105,12 @@ def normal_to_lognormal(mu_X, sigma_X):
     
     return mu_Y, sigma_Y
 
+# Function to generate probability based variables based on the case_control
 def generate_probability_vars(row, column_name, category):
     probabilities = conditions[row["case_control"]][column_name]
     return pd.Series(category).sample(weights=probabilities).values[0]
 
+# Function to generate number based variables based on the case_control
 def generate_num_vars(row, column_name, is_lognormal):
     mean, stdv = conditions[row["case_control"]][column_name]
     if is_lognormal:
@@ -132,8 +136,8 @@ def adjust_meat_intake(BMI, red_meat, processed_meat):
         processed_meat_adjusted *= 1.2
     
     # Ensure values are within realistic bounds
-    red_meat_adjusted = min(max(red_meat_adjusted, 10), 100)  # Limits between 10g and 100g
-    processed_meat_adjusted = min(max(processed_meat_adjusted, 5), 90)  # Limits between 5g and 90g
+    red_meat_adjusted = min(max(red_meat_adjusted, 0), 100)  # Limits between 10g and 100g
+    processed_meat_adjusted = min(max(processed_meat_adjusted, 0), 90)  # Limits between 5g and 90g
     
     return red_meat_adjusted, processed_meat_adjusted
 
