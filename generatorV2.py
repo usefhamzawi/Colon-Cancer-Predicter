@@ -70,7 +70,7 @@ races = [0, 1, 2, 3, 4] # 0 White, 1 Black, 2 Asian/PI, 3 American Indian, 4 His
 
 # Create intial mock for the dataset
 df = datallm.mock(
-    n=100,
+    n=1000,
     data_description="Synthetic dataset for colorectal cancer study",
     columns={
         "id": 
@@ -260,8 +260,10 @@ def generate_race(row):
 df['race'] = df.apply(generate_race, axis=1)
 
 # Format numeric outputs to two decimal places
-numeric_columns = ['age', 'BMI', 'red_meat', 'processed_meat', 'alcohol_use', 'smoking_duration', 'pack_years', 'moderate_activity', 'vigorous_activity', 'strength_activity', 'dietary_fiber']
+numeric_columns = ['BMI', 'red_meat', 'processed_meat', 'alcohol_use', 'smoking_duration', 'pack_years', 'moderate_activity', 'vigorous_activity', 'strength_activity', 'dietary_fiber']
 df[numeric_columns] = df[numeric_columns].round(2)
+
+df['age'] = round(df['age'])
 
 # Save DataFrame to CSV file
 output_file_path = r"D:\Colon-Cancer-Predicter\data\data.csv"
