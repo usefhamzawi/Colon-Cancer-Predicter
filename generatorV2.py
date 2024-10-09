@@ -226,6 +226,23 @@ df['smoking_status'] = df.apply(
     axis=1
 )
 
+# Adjust smoking-related variables based on smoking status
+def adjust_smoking_variables(row):
+    if row['smoking_status'] == 2:  # Current smoker
+        # No adjustment needed for current smokers
+        pass
+    elif row['smoking_status'] == 1:  # Former smoker
+        # Decrease smoking duration and pack years for former smokers
+        row['smoking_duration'] *= 0.8  # Example reduction factor
+        row['pack_years'] *= 0.8  # Example reduction factor
+    else:  # Never smoker
+        row['smoking_duration'] = 0
+        row['pack_years'] = 0
+    return row
+
+# Apply the adjustment function
+df = df.apply(adjust_smoking_variables, axis=1)
+
 # Define a function to generate race based on case_control status
 def generate_race(row):
     if row['case_control'] == "0":  # Control
