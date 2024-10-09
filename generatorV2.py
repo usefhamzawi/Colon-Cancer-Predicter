@@ -183,6 +183,41 @@ df['red_meat'], df['processed_meat'] = zip(*df.apply(
 df['smoking_duration'] = df.apply(
     lambda row: adjust_smoking_duration(row['pack_years'], row['smoking_duration']), axis=1)
 
+# Define smoking status probabilities by age group
+smoking_status_probs = {
+    "18-24": [0.163, 0.223, 0.614],  # [current, former, never]
+    "25-44": [0.306, 0.458, 0.236],
+    "45+": [0.427, 0.501, 0.072]
+}
+
+# Function to determine smoking status based on age
+def determine_smoking_status(age):
+    if age < 25:
+        return np.random.choice([2, 1, 0], p=smoking_status_probs["18-24"])  # current = 2, former = 1, never = 0
+    elif age < 45:
+        return np.random.choice([2, 1, 0], p=smoking_status_probs["25-44"])
+    else:
+        return np.random.choice([2, 1, 0], p=smoking_status_probs["45+"])
+
+# Apply the function to generate the smoking status column
+df['smoking_status'] = df['age'].apply(determine_smoking_status)
+
+# Adjust smoking-related variables based on smoking status
+def adjust_smoking_variables(row):
+    if row['smoking_status'] == 2:  # Current smoker
+        row['smoking_duration'] *= 1.2
+        row['pack_years'] *= 1.2
+    elif row['smoking_status'] == 1:  # Former smoker
+        row['smoking_duration'] *= 0.8
+        row['pack_years'] *= 0.8
+    else:  # Never smoker
+        row['smoking_duration'] = 0
+        row['pack_years'] = 0
+    return row
+
+# Apply the adjustment function
+df = df.apply(adjust_smoking_variables, axis=1)
+
 for column_name, category in [
     ("sex", sex_categories),
     ("diabetes", diabetes_categories),
@@ -207,7 +242,7 @@ numeric_columns = ['age', 'BMI', 'red_meat', 'processed_meat', 'alcohol_use', 's
 df[numeric_columns] = df[numeric_columns].round(2)
 
 # Save DataFrame to CSV file
-output_file_path = r"D:\Colon-Cancer-Predicter\data\data.csv"
+output_file_path = r"D:\Colon-Cancer-Predicter\data\data2.csv"
 df.to_csv(output_file_path, index=False)
 
 print(f"Data saved to {output_file_path}")
