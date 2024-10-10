@@ -1,8 +1,6 @@
-Here's the updated README with all the articles you provided included in the **Acknowledgments** section:
+### Colorectal Cancer Predictor
 
----
-
-# Synthetic Data Generation for Colorectal Cancer Study
+Note: This project contains a synthetic data generator that simulates realistic health and lifestyle data for colorectal cancer research. The model for predicting colorectal cancer is still under development. Only the data generation component is complete at this stage.
 
 ## Overview
 
