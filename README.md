@@ -1,4 +1,4 @@
-### Colorectal Cancer Predictor
+# Colorectal Cancer Predictor
 
 Note: This project contains a synthetic data generator that simulates realistic health and lifestyle data for colorectal cancer research. The model for predicting colorectal cancer is still under development. Only the data generation component is complete at this stage.
 
@@ -44,6 +44,7 @@ This project generates synthetic datasets for a colorectal cancer study using th
 3. Run the script:
 
    ```bash
+   cd src
    python generatorV2.py
    ```
 
@@ -89,6 +90,7 @@ The following research articles were referenced to inform the probabilities and 
 19. [Processed Meat Consumption Research](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4588743/)
 20. [Colorectal Cancer Epidemiology](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10646729/)
 21. [Colorectal Cancer and Diet](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8920658/)
+22. [NCBI - Smoking and Colorectal Cancer Study](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7539122/)
 
 Special thanks to these studies for providing the necessary data and statistics used in building the synthetic datasets for colorectal cancer research.
 
