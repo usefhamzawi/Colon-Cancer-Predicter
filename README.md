@@ -83,7 +83,7 @@ The following research articles were referenced to inform the probabilities and 
 12. [NCBI - Smoking Study](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2697260/)
 13. [Red Meat Consumption and Cancer Risk](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5836070/)
 14. [Alcohol Consumption and Risk of Colon Cancer](https://pubmed.ncbi.nlm.nih.gov/15623458/)
-15. [Gender Differences in the Epidemiology of Alcohol Use](https://arcr.niaaa.nih.gov/volume/40/2/gender-differences-epidemiology-alcohol-use-and-related-harms-united-states#:~:text=In%20the%20United%20States%2C%20more,%2C%206.7%20liters%20for%20females).)
+15. [Gender Differences in the Epidemiology of Alcohol Use](https://arcr.niaaa.nih.gov/volume/40/2/gender-differences-epidemiology-alcohol-use-and-related-harms-united-states#:~:text=In%20the%20United%20States%2C%20more,%2C%206.7%20liters%20for%20females)
 16. [Secular Trends in Alcohol Consumption](<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2562028/#:~:text=Among%20drinkers%2C%20there%20was%20a,women%20(p%3C%200.001)%2C>)
 17. [Global Trends in Smoking](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10488173/)
 18. [Pack Years Calculation](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6522766/)
