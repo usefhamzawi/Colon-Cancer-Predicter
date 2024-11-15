@@ -1,6 +1,7 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_auc_score, f1_score
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input
 
@@ -34,10 +35,18 @@ history = model.fit(X_train_scaled, y_train, epochs=50, batch_size=32, validatio
 loss, accuracy = model.evaluate(X_test_scaled, y_test)
 print(f'Test Accuracy: {accuracy:.4f}')
 
-# Generate Risk Scores
-risk_scores = model.predict(X_test_scaled)
+# Generate binary predictions for F1 Score and AUC-ROC
+y_pred = (model.predict(X_test_scaled) > 0.5).astype("int32")  # Thresholded predictions
+y_proba = model.predict(X_test_scaled)  # Predicted probabilities for AUC-ROC
 
-# Save the Trained Model 
+# Calculate AUC-ROC and F1 score
+auc_roc = roc_auc_score(y_test, y_proba)
+f1 = f1_score(y_test, y_pred)
+
+print(f'Test AUC-ROC: {auc_roc:.4f}')
+print(f'Test F1 Score: {f1:.4f}')
+
+# Save the Trained Model
 model.save('D:\\Colon-Cancer-Predicter\\Models\\trained_model.keras')
 print("Model saved to: D:\\Colon-Cancer-Predicter\\Models\\trained_model.keras")
 
@@ -45,11 +54,11 @@ print("Model saved to: D:\\Colon-Cancer-Predicter\\Models\\trained_model.keras")
 with open('D:\\Colon-Cancer-Predicter\\Models\\model_architecture.json', 'w') as f:
     f.write(model.to_json())
 
-# Save the Model's Weights 
+# Save the Model's Weights
 model.save_weights('D:\\Colon-Cancer-Predicter\\Models\\model_weights.weights.h5')
 print("Model weights saved to: D:\\Colon-Cancer-Predicter\\Models\\model_weights.weights.h5")
 
 # Output Risk Scores
-results = pd.DataFrame({'Risk Score': risk_scores.flatten(), 'Actual': y_test.values})
+results = pd.DataFrame({'Risk Score': y_proba.flatten(), 'Actual': y_test.values})
 results.to_csv('D:\\Colon-Cancer-Predicter\\Models\\risk_scores.csv', index=False)
 print("Risk scores saved to: D:\\Colon-Cancer-Predicter\\Models\\risk_scores.csv")
