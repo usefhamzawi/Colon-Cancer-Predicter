@@ -1,14 +1,17 @@
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.layers import Dense, Dropout, Input, BatchNormalization, Activation
 from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
 import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.calibration import calibration_curve
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import shap
 
 class ColoRecModel:
     def __init__(self, input_shape):
@@ -39,11 +42,20 @@ class ColoRecModel:
         # Input layer
         self.model.add(Input(shape=(self.input_shape,)))
         
-        # Hidden layers
+        # Hidden layers with BatchNormalization
         for neurons, dropout_rate in zip(hidden_layers, dropout_rates):
+            # Dense layer
             self.model.add(Dense(neurons, 
-                                 activation='relu', 
-                                 kernel_regularizer=regularizers.l2(l2_lambda)))
+                                activation=None,  # Use None here because BatchNormalization normalizes activations
+                                kernel_regularizer=regularizers.l2(l2_lambda)))
+            
+            # BatchNormalization layer
+            self.model.add(BatchNormalization())
+            
+            # ReLU activation after BatchNormalization
+            self.model.add(Activation('relu'))
+            
+            # Dropout layer
             self.model.add(Dropout(dropout_rate))
         
         # Output layer
@@ -51,8 +63,8 @@ class ColoRecModel:
         
         # Compile the model
         self.model.compile(optimizer='adam', 
-                           loss='binary_crossentropy', 
-                           metrics=['accuracy'])
+                        loss='binary_crossentropy', 
+                        metrics=['accuracy'])
         
         return self.model
 
@@ -124,22 +136,6 @@ class ColoRecModel:
         }
         
         return metrics
-
-    def plot_confusion_matrix(self, y_test, y_pred):
-        """
-        Plot confusion matrix
-        
-        Parameters:
-        - y_test: True labels
-        - y_pred: Predicted labels
-        """
-        cm = confusion_matrix(y_test, y_pred)
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-        plt.title('Confusion Matrix')
-        plt.xlabel('Predicted')
-        plt.ylabel('Actual')
-        plt.show()
 
     def calibrate_probabilities(self, X_test, y_test, method='sigmoid', cv=5):
         """
@@ -216,9 +212,6 @@ class ColoRecModel:
         """
         Perform temperature scaling
         """
-        import torch
-        import torch.nn as nn
-        import torch.optim as optim
         
         # Prevent division by zero and numerical instability
         def logit_transform(probabilities):
@@ -360,8 +353,6 @@ class ColoRecModel:
         - y_pred_proba: Predicted probabilities
         - n_bins: Number of bins for calibration curve (default=10)
         """
-        import matplotlib.pyplot as plt
-        from sklearn.calibration import calibration_curve
 
         # Create the calibration curve plot
         plt.figure(figsize=(10, 10))
@@ -390,10 +381,126 @@ class ColoRecModel:
 
         plt.show()
 
+    def plot_shap_summary(self, X_train):
+        """
+        Plot a SHAP summary plot for feature importance.
+        
+        Parameters:
+        - X_train: Training features
+        """
+        # Select a background dataset (random subset of training data)
+        background = X_train[np.random.choice(X_train.shape[0], 100, replace=False)]
+
+        # Create a SHAP DeepExplainer for the model
+        explainer = shap.DeepExplainer(self.model, background)
+
+        # Compute SHAP values for the entire dataset (or a subset)
+        shap_values = explainer.shap_values(X_train)
+        
+        feature_names = ['race', 'age', 'BMI', 'red_meat', 'processed_meat', 'alcohol_use', 'smoking_duration',
+                 'pack_years', 'sedentary_activity', 'physical_activity', 'dietary_fiber', 'sex', 
+                 'diabetes', 'family_history', 'smoking_status', 'drinking_status']
+
+        # Check if shap_values is a list (e.g., for multi-class classification)
+        # If so, we just need to pick the relevant class (e.g., the first class in binary classification)
+        if isinstance(shap_values, list):
+            shap_values = shap_values[0]  # For binary classification, or select the class of interest
+
+        # Convert X_train to a DataFrame if it's not already
+        if isinstance(X_train, np.ndarray):
+            X_train = pd.DataFrame(X_train, columns=feature_names)
+
+        # Ensure that X_train is aligned with the feature names
+        shap.summary_plot(shap_values, X_train, feature_names=feature_names, max_display=20)
+
+
+    def plot_training_history(self, history):
+        """
+        Plot training history for loss and accuracy
+        
+        Parameters:
+        - history: History object returned from model training
+        """
+        # Plot loss curve
+        plt.figure(figsize=(12, 6))
+        plt.subplot(1, 2, 1)
+        plt.plot(history.history['loss'], label='Train Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.title('Loss Curve')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+
+        # Plot accuracy curve
+        plt.subplot(1, 2, 2)
+        plt.plot(history.history['accuracy'], label='Train Accuracy')
+        plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+        plt.title('Accuracy Curve')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.legend()
+
+        plt.tight_layout()
+        plt.show()
+
+    def print_model_summary(self):
+        """
+        Print a summary of the model's layers and weights
+        """
+        # Print the model summary (layers and parameters)
+        self.model.summary()
+
+        # Print the weights for each layer
+        for layer in self.model.layers:
+            if hasattr(layer, 'get_weights'):
+                weights = layer.get_weights()
+                if weights:
+                    print(f'Layer: {layer.name} | Weights shape: {weights[0].shape} | Biases shape: {weights[1].shape if len(weights) > 1 else None}')
+
+    def detailed_evaluation(self, X_test, y_test):
+        """
+        Perform detailed model evaluation and save risk scores
+        
+        Parameters:
+        - X_test: Scaled test features
+        - y_test: Test labels
+        
+        Returns:
+        - Dictionary of evaluation metrics
+        """
+        # Predict probabilities and binary predictions
+        y_proba = self.model.predict(X_test).flatten()
+        y_pred = (y_proba > 0.5).astype(int)
+
+        # Calculate metrics
+        auc_roc = roc_auc_score(y_test, y_proba)
+        f1 = f1_score(y_test, y_pred)
+
+        # Print metrics
+        print(f'Test AUC-ROC: {auc_roc:.4f}')
+        print(f'Test F1 Score: {f1:.4f}')
+
+        # Create and save risk scores DataFrame
+        results = pd.DataFrame({
+            'Risk Score': y_proba.flatten(), 
+            'Actual': y_test.values
+        })
+        
+        # Save risk scores
+        risk_scores_path = 'D:\\Colon-Cancer-Predicter\\Models\\risk_scores.csv'
+        results.to_csv(risk_scores_path, index=False)
+        print(f"Risk scores saved to: {risk_scores_path}")
+
+        # Return metrics for further analysis
+        return {
+            'auc_roc': auc_roc,
+            'f1_score': f1,
+            'risk_scores': results
+        }
 
 if __name__ == "__main__":
     # Load data
-    data = pd.read_csv('D:\\Colon-Cancer-Predicter\\data\\data4.csv')
+    data = pd.read_csv('D:\\Colon-Cancer-Predicter\\data\\preprocessed_data.csv')
     X = data.drop(columns=['case_control', 'id'])
     y = data['case_control']
 
@@ -413,4 +520,15 @@ if __name__ == "__main__":
 
     # Save model
     model.save_model()
+
+    # Detailed evaluation
     model.detailed_evaluation(X_test_scaled, y_test)
+
+    # Plot training history
+    model.plot_training_history(history)
+
+    # Plot feature importance
+    model.plot_shap_summary(X_train_scaled)
+
+    # Print model summary and weights
+    model.print_model_summary()
