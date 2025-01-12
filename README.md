@@ -124,7 +124,7 @@ This project generates synthetic datasets for a colorectal cancer study and uses
 
 10. **SHAP Analysis**:
 
-    - The `plot_shap_summary` method generates SHAP (Shapley value) plots to visualize feature importance and model explainability. It produces a beeswarm plot for the top 10 most impactful features and the remaining features.
+    - The `plot_shap_summary` method generates SHAP (Shapley value) plots to visualize feature importance and model explainability. It produces a beeswarm plot for the first 10 features and the remaining features as well as all of them ranked in importance.
 
 11. **Training History Plotting**:
     - The `plot_training_history` method generates loss and accuracy curves from the training history.
