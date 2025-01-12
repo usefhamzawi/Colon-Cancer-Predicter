@@ -82,7 +82,7 @@ This project generates synthetic datasets for a colorectal cancer study and uses
 
 5. **Standarization and Adding Guassian Noise**
 
-   - After the Data Adjustments the script standarizes the data then adds Guassian Noise. In the data folder the `preprocessed_data.csv` has a level of Guassian Noise at a level of 0.05, the `preprocessed_data_added_noise.csv` has a level of Guassian Noise of 0.08, lastly the `preprocessed_data_extra_noise` has a level of Guassian Noise of 0.1. Guassian Noise is introduced in Machine Learning datasets to improve the models overfitting and overconfidence by augmenting the data to have more variation. The noise is generated using `np.random.normal(loc=0, scale=noise_level, size=len(column))`, this creates randin values from a normal distribution with a mean of 0 and a standard defined by the `noise_level`.
+   - After the Data Adjustments the script standarizes the data then adds Guassian Noise. In the data folder the `preprocessed_data.csv` has a level of Guassian Noise at a level of 0.05, the `preprocessed_data_added_noise.csv` has a level of Guassian Noise of 0.08, lastly the `preprocessed_data_extra_noise` has a level of Guassian Noise of 0.1. Guassian Noise is introduced in Machine Learning datasets to improve the models overfitting and overconfidence by augmenting the data to have more variation. The noise is generated using `np.random.normal(loc=0, scale=noise_level, size=len(column))`, this creates random values from a normal distribution with a mean of 0 and a standard deviation defined by the `noise_level`.
 
 ## Model
 
