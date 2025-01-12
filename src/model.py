@@ -8,9 +8,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 from sklearn.calibration import calibration_curve
-import torch
-import torch.nn as nn
-import torch.optim as optim
 import shap
 
 class ColoRecModel:
@@ -70,27 +67,36 @@ class ColoRecModel:
 
     def prepare_data(self, X, y, test_size=0.2, random_state=42):
         """
-        Prepare and split the data
+        Prepare and split the data, returning DataFrames with the same structure as the original X.
         
         Parameters:
-        - X: Features
-        - y: Labels
+        - X: Features (DataFrame)
+        - y: Labels (Series or DataFrame)
         - test_size: Proportion of test data
         - random_state: Random seed for reproducibility
         
         Returns:
-        - Scaled train and test datasets
+        - Scaled train and test datasets as DataFrames
         """
         # Split the data
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=random_state
         )
         
-        # Scale the data
-        X_train_scaled = self.scaler.fit_transform(X_train)
-        X_test_scaled = self.scaler.transform(X_test)
+        # Scale the data using StandardScaler
+        X_train_scaled = pd.DataFrame(
+            self.scaler.fit_transform(X_train), 
+            columns=X.columns,  # Keep column names
+            index=X_train.index  # Keep the original index
+        )
+        X_test_scaled = pd.DataFrame(
+            self.scaler.transform(X_test), 
+            columns=X.columns,  # Keep column names
+            index=X_test.index  # Keep the original index
+        )
         
         return X_train_scaled, X_test_scaled, y_train, y_test
+
 
     def train(self, X_train, y_train, epochs=50, batch_size=32, validation_split=0.2):
         """
@@ -207,71 +213,6 @@ class ColoRecModel:
             'Expected Calibration Error': ece,
             'Maximum Calibration Error': mce
         }
-
-    def temperature_scale(self, X_val, y_val, X_test):
-        """
-        Perform temperature scaling
-        """
-        
-        # Prevent division by zero and numerical instability
-        def logit_transform(probabilities):
-            eps = 1e-12
-            probabilities = np.clip(probabilities, eps, 1 - eps)
-            return np.log(probabilities / (1 - probabilities))
-        
-        class TemperatureScaler(nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.temperature = nn.Parameter(torch.ones(1) * 1.5)
-            
-            def forward(self, logits):
-                return logits / self.temperature
-        
-        # Get model predictions
-        y_proba_val = self.model.predict(X_val).flatten()
-        y_proba_test = self.model.predict(X_test).flatten()
-        
-        # Convert to logits more safely
-        logits_val = logit_transform(y_proba_val)
-        logits_test = logit_transform(y_proba_test)
-        
-        # Convert to torch tensors (with pandas Series conversion)
-        logits_val_torch = torch.FloatTensor(logits_val)
-        y_val_torch = torch.FloatTensor(y_val.values)  # Convert pandas Series to numpy array
-        logits_test_torch = torch.FloatTensor(logits_test)
-        
-        # Initialize temperature scaler
-        temperature_scaler = TemperatureScaler()
-        
-        # Use NLL loss instead of BCE for better numerical stability
-        criterion = nn.BCEWithLogitsLoss()
-        
-        # Optimizer with better parameters
-        optimizer = optim.LBFGS([temperature_scaler.temperature], 
-                            lr=0.01, 
-                            max_iter=50,
-                            line_search_fn='strong_wolfe')
-        
-        def eval():
-            optimizer.zero_grad()
-            scaled_logits = temperature_scaler(logits_val_torch)
-            loss = criterion(scaled_logits, y_val_torch)
-            loss.backward()
-            return loss
-        
-        # Optimize temperature
-        optimizer.step(eval)
-        
-        # Get the final temperature value
-        final_temp = temperature_scaler.temperature.item()
-        print(f"Optimal temperature: {final_temp:.3f}")
-        
-        # Scale test logits and convert back to probabilities
-        with torch.no_grad():
-            scaled_test_logits = temperature_scaler(logits_test_torch)
-            scaled_test_proba = torch.sigmoid(scaled_test_logits).numpy()
-        
-        return scaled_test_proba
     
     def save_model(self, base_path='D:\\Colon-Cancer-Predicter\\Models\\'):
         """
@@ -381,39 +322,93 @@ class ColoRecModel:
 
         plt.show()
 
-    def plot_shap_summary(self, X_train):
+    def plot_shap_summary(self, X_train, X_test):
         """
-        Plot a SHAP summary plot for feature importance.
-        
-        Parameters:
-        - X_train: Training features
-        """
-        # Select a background dataset (random subset of training data)
-        background = X_train[np.random.choice(X_train.shape[0], 100, replace=False)]
+        Plot SHAP beeswarm plots for feature importance using DeepExplainer.
+        Generates two plots: one for the top 10 most impactful features and another for the remaining features.
 
-        # Create a SHAP DeepExplainer for the model
+        Parameters:
+        - X_train: Training features (16 features)
+        - X_test: Testing features (16 features)
+        """
+
+        feature_names = X_train.columns
+
+        # Convert X_train and X_test to NumPy arrays if they're DataFrames
+        if isinstance(X_train, pd.DataFrame):
+            X_train = X_train.values  # Convert to NumPy array
+            
+        if isinstance(X_test, pd.DataFrame):
+            X_test = X_test.values  # Convert to NumPy array
+
+        # Select a background dataset (X_train only, for model explanation)
+        background = X_train[:1000]
+
+        # Initialize DeepExplainer with the model and background dataset
         explainer = shap.DeepExplainer(self.model, background)
 
-        # Compute SHAP values for the entire dataset (or a subset)
-        shap_values = explainer.shap_values(X_train)
-        
-        feature_names = ['race', 'age', 'BMI', 'red_meat', 'processed_meat', 'alcohol_use', 'smoking_duration',
-                 'pack_years', 'sedentary_activity', 'physical_activity', 'dietary_fiber', 'sex', 
-                 'diabetes', 'family_history', 'smoking_status', 'drinking_status']
+        # Compute SHAP values for the test data (X_test is the 16 features)
+        shap_values = explainer.shap_values(X_test[:100])
 
-        # Check if shap_values is a list (e.g., for multi-class classification)
-        # If so, we just need to pick the relevant class (e.g., the first class in binary classification)
+        # Debugging: Print the shape of SHAP values and the data
+        print("Shape of SHAP values:", [sv.shape for sv in shap_values])  # Check all the SHAP values
+
+        # Since this is binary classification, take the SHAP values for the first class
         if isinstance(shap_values, list):
-            shap_values = shap_values[0]  # For binary classification, or select the class of interest
+            shap_values = shap_values[0]  # Get SHAP values for the first class (the predicted class)
 
-        # Convert X_train to a DataFrame if it's not already
-        if isinstance(X_train, np.ndarray):
-            X_train = pd.DataFrame(X_train, columns=feature_names)
+        # Flatten the SHAP values to remove the extra dimension
+        shap_values = shap_values.reshape(shap_values.shape[0], shap_values.shape[1])
 
-        # Ensure that X_train is aligned with the feature names
-        shap.summary_plot(shap_values, X_train, feature_names=feature_names, max_display=20)
+        # Debugging: Check the shape after reshaping
+        print("Shape of SHAP values after reshaping:", shap_values.shape)
+        print("Shape of X_test[:100]:", X_test[:100].shape)
+
+        # Ensure that shap_values shape matches the input data shape
+        assert shap_values.shape[0] == X_test[:100].shape[0], f"Shape mismatch: {shap_values.shape} vs {X_test[:100].shape}"
+
+        # Convert SHAP values to Explanation object for better handling
+        shap_explanation = shap.Explanation(
+            values=shap_values,  # SHAP values for the predicted class
+            data=X_test[:100],   # Corresponding input data (features only)
+            feature_names=feature_names
+        )
+
+        # Sort the features by mean absolute SHAP value
+        mean_abs_shap_values = shap_values.mean(axis=0)
+        sorted_indices = mean_abs_shap_values.argsort()[::-1]  # Indices sorted by importance in descending order
+
+        # Split into two groups: top 10 features and remaining features
+        top_10_indices = sorted_indices[:10]
+        remaining_indices = sorted_indices[10:]
+
+        # Create Explanation objects for the two groups
+        top_10_explanation = shap.Explanation(
+            values=shap_values[:, top_10_indices],
+            data=X_test[:100][:, top_10_indices],
+            feature_names=[feature_names[i] for i in top_10_indices]
+        )
+        
+        remaining_explanation = shap.Explanation(
+            values=shap_values[:, remaining_indices],
+            data=X_test[:100][:, remaining_indices],
+            feature_names=[feature_names[i] for i in remaining_indices]
+        )
+
+        # Plot the SHAP beeswarm plot for the first 10 features
+        print("Generating SHAP beeswarm plot for first 10 features...")
+        shap.plots.beeswarm(top_10_explanation)
+
+        # Plot the SHAP beeswarm plot for the remaining features
+        print("Generating SHAP beeswarm plot for the remaining features...")
+        shap.plots.beeswarm(remaining_explanation)
+
+        # Print all the features on one plot
+        print("Generating SHAP beeswarm plot for all the features...")
+        shap.plots.beeswarm(shap_explanation)
 
 
+     
     def plot_training_history(self, history):
         """
         Plot training history for loss and accuracy
@@ -443,19 +438,23 @@ class ColoRecModel:
         plt.tight_layout()
         plt.show()
 
-    def print_model_summary(self):
+    def print_model_summary(self, file_path="D:\\Colon-Cancer-Predicter\\Models\\model_summary.txt"):
         """
-        Print a summary of the model's layers and weights
-        """
-        # Print the model summary (layers and parameters)
-        self.model.summary()
+        Save a summary of the model's layers and weights to a text file.
 
-        # Print the weights for each layer
-        for layer in self.model.layers:
-            if hasattr(layer, 'get_weights'):
-                weights = layer.get_weights()
-                if weights:
-                    print(f'Layer: {layer.name} | Weights shape: {weights[0].shape} | Biases shape: {weights[1].shape if len(weights) > 1 else None}')
+        Parameters:
+        - file_path: The file path where the summary will be saved (default is "model_summary.txt")
+        """
+        with open(file_path, "w", encoding="utf-8") as file:  # Explicitly specify UTF-8 encoding
+            # Print the model summary (layers and parameters) to the text file
+            self.model.summary(print_fn=lambda x: file.write(x + '\n'))
+
+            # Print the weights for each layer to the text file
+            for layer in self.model.layers:
+                if hasattr(layer, 'get_weights'):
+                    weights = layer.get_weights()
+                    if weights:
+                        file.write(f'Layer: {layer.name} | Weights shape: {weights[0].shape} | Biases shape: {weights[1].shape if len(weights) > 1 else None}\n')
 
     def detailed_evaluation(self, X_test, y_test):
         """
@@ -500,9 +499,9 @@ class ColoRecModel:
 
 if __name__ == "__main__":
     # Load data
-    data = pd.read_csv('D:\\Colon-Cancer-Predicter\\data\\preprocessed_data.csv')
-    X = data.drop(columns=['case_control', 'id'])
-    y = data['case_control']
+    data = pd.read_csv('D:\\Colon-Cancer-Predicter\\data\\preprocessed_data_added_noise.csv')
+    X = data.drop(columns=['case_control', 'id'])  # Features
+    y = data['case_control']  # Target variable
 
     # Initialize and build model
     model = ColoRecModel(input_shape=X.shape[1])
@@ -515,7 +514,7 @@ if __name__ == "__main__":
     history = model.train(X_train_scaled, y_train)
 
     # Get predictions and plot calibration
-    y_pred_proba = model.model.predict(X_test_scaled).flatten()
+    y_pred_proba = model.model.predict(X_test_scaled).flatten()  # Ensure y_pred_proba is 1D
     model.plot_calibration(y_test, y_pred_proba)
 
     # Save model
@@ -528,7 +527,7 @@ if __name__ == "__main__":
     model.plot_training_history(history)
 
     # Plot feature importance
-    model.plot_shap_summary(X_train_scaled)
+    model.plot_shap_summary(X_train_scaled, X_test_scaled)
 
     # Print model summary and weights
     model.print_model_summary()

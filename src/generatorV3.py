@@ -40,11 +40,6 @@ conditions = {
     }
 }
 
-# Softmax function to calculate probabilities
-def softmax(x):
-    e_x = np.exp(x - np.max(x))  # Numerical stability
-    return e_x / e_x.sum()  # Normalize
-
 # Race probabilities for controls
 race_probs_controls = [
     0.584,  # White
@@ -56,10 +51,13 @@ race_probs_controls = [
 
 
 # Race incidence rates for cases
-case_incidence_rates = np.array([37.0, 41.9, 31.7, 39.3, 33.5])  # White, Black, Asian/PI, American Indian, Hispanic
-
-# Apply softmax to case incidence rates
-race_probs_cases = softmax(case_incidence_rates)
+race_probs_cases = [
+    0.2017, # White
+    0.2285, # Black
+    0.1728, # Asian/PI
+    0.2143, # American Indian
+    0.1827  # Hispanic
+]
 
 # Categories for case-control and other binary categories
 sex_categories = [0, 1]  # 0 for female, 1 for male
