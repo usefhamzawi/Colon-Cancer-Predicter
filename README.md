@@ -18,6 +18,10 @@ This project generates synthetic datasets for a colorectal cancer study and uses
 - NumPy
 - Pandas
 - Random
+- Tensorflow
+- Scikit-learn
+- Matplotlib
+- SHAP
 
 ## Installation
 
