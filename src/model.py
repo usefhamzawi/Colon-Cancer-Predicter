@@ -3,6 +3,7 @@ import pandas as pd
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input, BatchNormalization, Activation
 from tensorflow.keras import regularizers
+import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
@@ -23,9 +24,9 @@ class ColoRecModel:
         self.scaler = StandardScaler()
 
     def build_model(self, 
-                hidden_layers=[64, 32, 16],  
-                dropout_rates=[0.4, 0.4, 0.4],  
-                l2_lambda=0.02):
+                    hidden_layers=[64, 32, 16],  
+                    dropout_rates=[0.4, 0.4, 0.4],  
+                    l2_lambda=0.02):
         """
         Build the neural network model with configurable architecture
         
@@ -34,6 +35,35 @@ class ColoRecModel:
         - dropout_rates: Dropout rates for each hidden layer
         - l2_lambda: L2 regularization strength
         """
+
+        def focal_loss(gamma=2.0, alpha=0.25):
+            """
+            Focal Loss function for binary classification to address class imbalance.
+            
+            Parameters:
+            - gamma: Focusing parameter (higher values focus more on hard examples).
+            - alpha: Class balancing factor for positive/negative class.
+            
+            Returns:
+            - Loss function for training a model.
+            """
+            def loss(y_true, y_pred):
+                # Ensure y_pred is clipped to avoid log(0) errors
+                y_pred = tf.clip_by_value(y_pred, 1e-10, 1 - 1e-10)
+                
+                # Binary cross-entropy loss
+                cross_entropy = tf.keras.losses.binary_crossentropy(y_true, y_pred)
+                
+                # Probability of the true class
+                pt = tf.exp(-cross_entropy)
+                
+                # Focal loss term
+                focal_loss_value = alpha * tf.pow(1 - pt, gamma) * cross_entropy
+                
+                return tf.reduce_mean(focal_loss_value)
+            return loss
+
+
         self.model = Sequential()
         
         # Input layer
@@ -58,10 +88,10 @@ class ColoRecModel:
         # Output layer
         self.model.add(Dense(1, activation='sigmoid'))
         
-        # Compile the model
+        # Compile the model with Focal Loss
         self.model.compile(optimizer='adam', 
-                        loss='binary_crossentropy', 
-                        metrics=['accuracy'])
+                           loss=focal_loss(gamma=2.0, alpha=0.25), 
+                           metrics=['accuracy'])
         
         return self.model
 
@@ -456,6 +486,29 @@ class ColoRecModel:
                     if weights:
                         file.write(f'Layer: {layer.name} | Weights shape: {weights[0].shape} | Biases shape: {weights[1].shape if len(weights) > 1 else None}\n')
 
+
+    def mc_dropout_predict(self, X_test_scaled, n_samples=100):
+        # Prepare an empty list to store predictions
+        all_predictions = []
+        
+        # Ensure dropout is active by passing `training=True` during inference
+        for _ in range(n_samples):
+            # Forward pass through the model with dropout active
+            predictions = self.model(X_test_scaled, training=True)  # Ensure dropout is applied
+            all_predictions.append(predictions.numpy())  # Collect the predictions
+
+        # Convert the list of predictions into a NumPy array
+        all_predictions = np.array(all_predictions)
+
+        # Calculate the mean prediction across the samples
+        mean_predictions = np.mean(all_predictions, axis=0)
+
+        # Calculate the uncertainty (standard deviation)
+        uncertainty = np.std(all_predictions, axis=0)
+
+        return mean_predictions, uncertainty
+
+
     def detailed_evaluation(self, X_test, y_test):
         """
         Perform detailed model evaluation and save risk scores
@@ -513,9 +566,11 @@ if __name__ == "__main__":
     # Train model
     history = model.train(X_train_scaled, y_train)
 
+    mean_predictions, uncertainty = model.mc_dropout_predict(X_test_scaled, n_samples=100)
+
     # Get predictions and plot calibration
-    y_pred_proba = model.model.predict(X_test_scaled).flatten()  # Ensure y_pred_proba is 1D
-    model.plot_calibration(y_test, y_pred_proba)
+    # y_pred_proba = model.model.predict(X_test_scaled).flatten()  # Ensure y_pred_proba is 1D
+    model.plot_calibration(y_test, mean_predictions)
 
     # Save model
     model.save_model()
