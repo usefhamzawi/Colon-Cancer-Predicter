@@ -3,13 +3,41 @@ import pandas as pd
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input, BatchNormalization, Activation
 from tensorflow.keras import regularizers
+from tensorflow.keras.saving import register_keras_serializable
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
-import matplotlib.pyplot as plt
 from sklearn.calibration import calibration_curve
+import matplotlib.pyplot as plt
 import shap
+
+@register_keras_serializable()
+def focal_loss(gamma=2.0, alpha=0.25):
+    """
+    Focal Loss function for binary classification to address class imbalance.
+    
+    Parameters:
+    - gamma: Focusing parameter (higher values focus more on hard examples).
+    - alpha: Class balancing factor for positive/negative class.
+    
+    Returns:
+    - Loss function for training a model.
+    """
+    def loss(y_true, y_pred):
+        # Ensure y_pred is clipped to avoid log(0) errors
+        y_pred = tf.clip_by_value(y_pred, 1e-10, 1 - 1e-10)
+        
+        # Binary cross-entropy loss
+        cross_entropy = tf.keras.losses.binary_crossentropy(y_true, y_pred)
+        
+        # Probability of the true class
+        pt = tf.exp(-cross_entropy)
+        
+        # Focal loss term
+        focal_loss_value = alpha * tf.pow(1 - pt, gamma) * cross_entropy
+        
+        return tf.reduce_mean(focal_loss_value)
+    return loss
 
 class ColoRecModel:
     def __init__(self, input_shape):
@@ -21,7 +49,6 @@ class ColoRecModel:
         """
         self.input_shape = input_shape
         self.model = None
-        self.scaler = StandardScaler()
 
     def build_model(self, 
                     hidden_layers=[64, 32, 16],  
@@ -35,34 +62,6 @@ class ColoRecModel:
         - dropout_rates: Dropout rates for each hidden layer
         - l2_lambda: L2 regularization strength
         """
-
-        def focal_loss(gamma=2.0, alpha=0.25):
-            """
-            Focal Loss function for binary classification to address class imbalance.
-            
-            Parameters:
-            - gamma: Focusing parameter (higher values focus more on hard examples).
-            - alpha: Class balancing factor for positive/negative class.
-            
-            Returns:
-            - Loss function for training a model.
-            """
-            def loss(y_true, y_pred):
-                # Ensure y_pred is clipped to avoid log(0) errors
-                y_pred = tf.clip_by_value(y_pred, 1e-10, 1 - 1e-10)
-                
-                # Binary cross-entropy loss
-                cross_entropy = tf.keras.losses.binary_crossentropy(y_true, y_pred)
-                
-                # Probability of the true class
-                pt = tf.exp(-cross_entropy)
-                
-                # Focal loss term
-                focal_loss_value = alpha * tf.pow(1 - pt, gamma) * cross_entropy
-                
-                return tf.reduce_mean(focal_loss_value)
-            return loss
-
 
         self.model = Sequential()
         
@@ -113,19 +112,7 @@ class ColoRecModel:
             X, y, test_size=test_size, random_state=random_state
         )
         
-        # Scale the data using StandardScaler
-        X_train_scaled = pd.DataFrame(
-            self.scaler.fit_transform(X_train), 
-            columns=X.columns,  # Keep column names
-            index=X_train.index  # Keep the original index
-        )
-        X_test_scaled = pd.DataFrame(
-            self.scaler.transform(X_test), 
-            columns=X.columns,  # Keep column names
-            index=X_test.index  # Keep the original index
-        )
-        
-        return X_train_scaled, X_test_scaled, y_train, y_test
+        return X_train, X_test, y_train, y_test
 
 
     def train(self, X_train, y_train, epochs=50, batch_size=32, validation_split=0.2):
@@ -172,77 +159,38 @@ class ColoRecModel:
         }
         
         return metrics
-
-    def calibrate_probabilities(self, X_test, y_test, method='sigmoid', cv=5):
-        """
-        Calibrate model probabilities using cross-validation
-        """
-        from sklearn.calibration import CalibratedClassifierCV
-        from sklearn.base import BaseEstimator, ClassifierMixin
-        import numpy as np
-        
-        # Create proper sklearn-compatible wrapper
-        class KerasWrapper(BaseEstimator, ClassifierMixin):
-            def __init__(self):
-                self.classes_ = np.array([0, 1])
-                
-            def fit(self, X, y):
-                return self
-                
-            def predict_proba(self, X):
-                return np.hstack([1-X, X])
-                
-            def get_params(self, deep=True):
-                return {}
-                
-            def set_params(self, **parameters):
-                return self
-        
-        # Get uncalibrated probabilities
-        y_proba = self.model.predict(X_test).flatten()
-        y_proba = y_proba.reshape(-1, 1)
-        
-        # Create and fit calibrator
-        calibrator = CalibratedClassifierCV(
-            estimator=KerasWrapper(),
-            method=method,
-            cv=cv,
-            n_jobs=-1,
-            ensemble=True
-        )
-        
-        calibrator.fit(y_proba, y_test)
-        calibrated_proba = calibrator.predict_proba(y_proba)[:, 1]
-        
-        return calibrated_proba
     
     def evaluate_calibration(self, y_true, y_proba, n_bins=10):
         """
-        Evaluate prediction calibration using reliability diagram
+        Evaluate prediction calibration using reliability diagram.
+        Plots the reliability diagram and shows Expected Calibration Error (ECE)
+        and Maximum Calibration Error (MCE) on the plot.
         """
-        from sklearn.calibration import calibration_curve
-        
         # Calculate calibration curve
         prob_true, prob_pred = calibration_curve(y_true, y_proba, n_bins=n_bins)
-        
+
         # Plot reliability diagram
         plt.figure(figsize=(8, 8))
-        plt.plot([0, 1], [0, 1], 'k:', label='Perfectly calibrated')
-        plt.plot(prob_pred, prob_true, 's-', label='Model')
+        plt.plot([0, 1], [0, 1], 'k:', label='Perfectly calibrated')  # Ideal line
+        plt.plot(prob_pred, prob_true, 's-', label='Model')  # Model curve
         plt.xlabel('Mean predicted probability')
         plt.ylabel('True probability')
         plt.title('Reliability Diagram')
         plt.legend()
         plt.grid(True)
-        
-        # Calculate and return calibration metrics
+
+        # Calculate calibration metrics: Expected Calibration Error (ECE) and Maximum Calibration Error (MCE)
         ece = np.mean(np.abs(prob_true - prob_pred))
         mce = np.max(np.abs(prob_true - prob_pred))
-        
-        return {
-            'Expected Calibration Error': ece,
-            'Maximum Calibration Error': mce
-        }
+
+        plt.text(0.05, 0.95, 
+                f'Expected Calibration Error: {ece:.3f}\n'
+                f'Maximum Calibration Error: {mce:.3f}',
+                transform=plt.gca().transAxes,
+                bbox=dict(facecolor='white', alpha=0.8))
+
+        # Display the plot
+        plt.show()
     
     def save_model(self, base_path='D:\\Colon-Cancer-Predicter\\Models\\'):
         """
@@ -314,43 +262,6 @@ class ColoRecModel:
             'f1_score': f1,
             'risk_scores': results
         }
-
-    def plot_calibration(self, y_test, y_pred_proba, n_bins=10):
-        """
-        Plot calibration curve for the model
-        
-        Parameters:
-        - y_test: True labels
-        - y_pred_proba: Predicted probabilities
-        - n_bins: Number of bins for calibration curve (default=10)
-        """
-
-        # Create the calibration curve plot
-        plt.figure(figsize=(10, 10))
-        
-        # Plot the perfect calibration line
-        plt.plot([0, 1], [0, 1], 'k:', label='Perfectly calibrated')
-
-        # Calculate and plot calibration curve
-        prob_true, prob_pred = calibration_curve(y_test, y_pred_proba, n_bins=n_bins)
-        plt.plot(prob_pred, prob_true, 's-', label='Model')
-
-        # Customize the plot
-        plt.xlabel('Mean predicted probability')
-        plt.ylabel('True probability')
-        plt.title('Calibration Curve')
-        plt.legend()
-        plt.grid(True)
-        
-        # Calculate and add calibration metrics
-        metrics = self.evaluate_calibration(y_test, y_pred_proba)
-        plt.text(0.05, 0.95, 
-                f'Expected Calibration Error: {metrics["Expected Calibration Error"]:.3f}\n'
-                f'Maximum Calibration Error: {metrics["Maximum Calibration Error"]:.3f}',
-                transform=plt.gca().transAxes,
-                bbox=dict(facecolor='white', alpha=0.8))
-
-        plt.show()
 
     def plot_shap_summary(self, X_train, X_test):
         """
@@ -438,7 +349,6 @@ class ColoRecModel:
         shap.plots.beeswarm(shap_explanation)
 
 
-     
     def plot_training_history(self, history):
         """
         Plot training history for loss and accuracy
@@ -561,28 +471,27 @@ if __name__ == "__main__":
     model.build_model()
 
     # Prepare data
-    X_train_scaled, X_test_scaled, y_train, y_test = model.prepare_data(X, y)
+    X_train, X_test, y_train, y_test = model.prepare_data(X, y)
 
     # Train model
-    history = model.train(X_train_scaled, y_train)
+    history = model.train(X_train, y_train)
 
-    mean_predictions, uncertainty = model.mc_dropout_predict(X_test_scaled, n_samples=100)
-
-    # Get predictions and plot calibration
-    # y_pred_proba = model.model.predict(X_test_scaled).flatten()  # Ensure y_pred_proba is 1D
-    model.plot_calibration(y_test, mean_predictions)
+    mean_predictions, uncertainty = model.mc_dropout_predict(X_test, n_samples=100)
 
     # Save model
     model.save_model()
 
+    # Plot calibration
+    model.evaluate_calibration(y_test, mean_predictions)
+
     # Detailed evaluation
-    model.detailed_evaluation(X_test_scaled, y_test)
+    model.detailed_evaluation(X_test, y_test)
 
     # Plot training history
     model.plot_training_history(history)
 
     # Plot feature importance
-    model.plot_shap_summary(X_train_scaled, X_test_scaled)
+    model.plot_shap_summary(X_train, X_test)
 
     # Print model summary and weights
     model.print_model_summary()

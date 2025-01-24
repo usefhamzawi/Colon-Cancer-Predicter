@@ -40,7 +40,7 @@ This project generates synthetic datasets for a colorectal cancer study and uses
 
 ## Usage
 
-1. Open the main script (e.g., `generatorV3.py`).
+1. Open the main script (e.g., `generator.py`).
 
 2. Adjust the `probabilities` dictionary to fit your study requirements, modifying means and standard deviations as needed. The values in the dictionary have been informed by the following studies (see **Acknowledgments**).
 
@@ -48,7 +48,7 @@ This project generates synthetic datasets for a colorectal cancer study and uses
 
    ```bash
    cd src
-   python generatorV3.py
+   python generator.py
    ```
 
 4. The synthetic dataset will be saved as `normal_data.csv` in the specified output directory. Another preprocessed dataset will be saved as `preprocessed_data.csv`
@@ -88,45 +88,41 @@ This project generates synthetic datasets for a colorectal cancer study and uses
 
 1. **Initialization**:
 
-   - The `__init__` method sets up the model's input shape and prepares a `StandardScaler` for feature normalization.
+   - The `__init__` method sets up the model's input shape
 
 2. **Model Building**:
 
    - The `build_model` method defines a neural network architecture with configurable hidden layers, dropout rates, and L2 regularization. The model uses ReLU activation for hidden layers and a sigmoid output for binary classification.
 
-3. **Data Preparation**:
-
-   - The `prepare_data` method splits the dataset into training and test sets, scaling the features using `StandardScaler`.
-
-4. **Training**:
+3. **Training**:
 
    - The `train` method trains the model on the training data for a specified number of epochs, using a batch size and validation split.
 
-5. **Evaluation**:
+4. **Evaluation**:
 
    - The `evaluate` method evaluates the model on the test data, calculating performance metrics such as AUC-ROC, F1 score, and confusion matrix.
 
-6. **Calibration**:
+5. **Calibration**:
 
    - The `calibrate_probabilities` method calibrates the model's predicted probabilities using cross-validation and a specified method (e.g., sigmoid).
 
-7. **Calibration Evaluation**:
+6. **Calibration Evaluation**:
 
    - The `evaluate_calibration` method plots a reliability diagram and computes calibration metrics like Expected Calibration Error (ECE) and Maximum Calibration Error (MCE).
 
-8. **Model Saving**:
+7. **Model Saving**:
 
    - The `save_model` method saves the trained model, its architecture, and weights to specified paths.
 
-9. **Detailed Evaluation**:
+8. **Detailed Evaluation**:
 
    - The `detailed_evaluation` method provides an in-depth evaluation, saving the risk scores (predicted probabilities) to a CSV file.
 
-10. **SHAP Analysis**:
+9. **SHAP Analysis**:
 
-    - The `plot_shap_summary` method generates SHAP (Shapley value) plots to visualize feature importance and model explainability. It produces a beeswarm plot for the first 10 features and the remaining features as well as all of them ranked in importance.
+   - The `plot_shap_summary` method generates SHAP (Shapley value) plots to visualize feature importance and model explainability. It produces a beeswarm plot for the first 10 features and the remaining features as well as all of them ranked in importance.
 
-11. **Training History Plotting**:
+10. **Training History Plotting**:
     - The `plot_training_history` method generates loss and accuracy curves from the training history.
 
 ## License
