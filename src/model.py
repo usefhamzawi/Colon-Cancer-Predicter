@@ -3,41 +3,42 @@ import pandas as pd
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input, BatchNormalization, Activation
 from tensorflow.keras import regularizers
-from tensorflow.keras.saving import register_keras_serializable
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
 from sklearn.calibration import calibration_curve
+from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import shap
 
-@register_keras_serializable()
-def focal_loss(gamma=2.0, alpha=0.25):
+@tf.keras.utils.register_keras_serializable(package="Custom", name="focal_loss")
+def focal_loss(y_true, y_pred, gamma=2.0, alpha=0.25):
     """
     Focal Loss function for binary classification to address class imbalance.
     
     Parameters:
+    - y_true: Ground truth labels.
+    - y_pred: Predicted probabilities.
     - gamma: Focusing parameter (higher values focus more on hard examples).
     - alpha: Class balancing factor for positive/negative class.
     
     Returns:
-    - Loss function for training a model.
+    - Scalar focal loss value.
     """
-    def loss(y_true, y_pred):
-        # Ensure y_pred is clipped to avoid log(0) errors
-        y_pred = tf.clip_by_value(y_pred, 1e-10, 1 - 1e-10)
-        
-        # Binary cross-entropy loss
-        cross_entropy = tf.keras.losses.binary_crossentropy(y_true, y_pred)
-        
-        # Probability of the true class
-        pt = tf.exp(-cross_entropy)
-        
-        # Focal loss term
-        focal_loss_value = alpha * tf.pow(1 - pt, gamma) * cross_entropy
-        
-        return tf.reduce_mean(focal_loss_value)
-    return loss
+    # Ensure y_pred is clipped to avoid log(0) errors
+    y_pred = tf.clip_by_value(y_pred, 1e-10, 1 - 1e-10)
+    
+    # Binary cross-entropy loss
+    cross_entropy = tf.keras.losses.binary_crossentropy(y_true, y_pred)
+    
+    # Probability of the true class
+    pt = tf.exp(-cross_entropy)
+    
+    # Focal loss term
+    focal_loss_value = alpha * tf.pow(1 - pt, gamma) * cross_entropy
+    
+    return tf.reduce_mean(focal_loss_value)
+
 
 class ColoRecModel:
     def __init__(self, input_shape):
@@ -89,7 +90,7 @@ class ColoRecModel:
         
         # Compile the model with Focal Loss
         self.model.compile(optimizer='adam', 
-                           loss=focal_loss(gamma=2.0, alpha=0.25), 
+                           loss=focal_loss, 
                            metrics=['accuracy'])
         
         return self.model
@@ -272,6 +273,8 @@ class ColoRecModel:
         - X_train: Training features (16 features)
         - X_test: Testing features (16 features)
         """
+
+        X_train = pd.DataFrame(X_train, columns=X.columns)  # Convert X_train to DataFrame
 
         feature_names = X_train.columns
 
@@ -462,7 +465,7 @@ class ColoRecModel:
 
 if __name__ == "__main__":
     # Load data
-    data = pd.read_csv('D:\\Colon-Cancer-Predicter\\data\\preprocessed_data_added_noise.csv')
+    data = pd.read_csv('D:\\Colon-Cancer-Predicter\\data\\normal_data_added_noise.csv')
     X = data.drop(columns=['case_control', 'id'])  # Features
     y = data['case_control']  # Target variable
 
@@ -470,12 +473,24 @@ if __name__ == "__main__":
     model = ColoRecModel(input_shape=X.shape[1])
     model.build_model()
 
+    # Standardize the data
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
     # Prepare data
-    X_train, X_test, y_train, y_test = model.prepare_data(X, y)
+    X_train, X_test, y_train, y_test = model.prepare_data(X_scaled, y)
+
+    # Print means and standard deviations of the data
+    print("Means of the raw data:")
+    print(X.mean(axis=0))
+
+    print("\nStandard deviations of the raw data:")
+    print(X.std(axis=0))
 
     # Train model
     history = model.train(X_train, y_train)
 
+    # Make predictions
     mean_predictions, uncertainty = model.mc_dropout_predict(X_test, n_samples=100)
 
     # Save model
