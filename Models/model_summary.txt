@@ -44,5 +44,6 @@ Layer: dense_2 | Weights shape: (32, 16) | Biases shape: (16,)
 Layer: batch_normalization_2 | Weights shape: (16,) | Biases shape: (16,)
 Layer: dense_3 | Weights shape: (16, 1) | Biases shape: (1,)
 
+
 Test AUC-ROC: 0.9669
-Test F1 Score: 0.9031
+Test F1 Score: 0.9050

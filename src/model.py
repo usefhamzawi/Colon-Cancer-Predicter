@@ -9,6 +9,8 @@ from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
 from sklearn.calibration import calibration_curve
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, classification_report
+import seaborn as sns
 import shap
 
 @tf.keras.utils.register_keras_serializable(package="Custom", name="focal_loss")
@@ -462,6 +464,35 @@ class ColoRecModel:
             'f1_score': f1,
             'risk_scores': results
         }
+    
+    def confusion_matrix_chart(self, y_test, X_test):
+        y_test = np.array(y_test)
+
+        # Get predicted probabilities
+        y_proba = self.model.predict(X_test)
+
+        # Convert probabilities to binary predictions (0 or 1) using a threshold of 0.5
+        y_pred = (y_proba > 0.5).astype(int)
+
+        # Generate confusion matrix
+        cm = confusion_matrix(y_test, y_pred)
+
+        # Print the raw confusion matrix
+        print("Confusion Matrix:")
+        print(cm)
+
+        # Print classification report (includes precision, recall, F1-score)
+        print("\nClassification Report:")
+        print(classification_report(y_test, y_pred))
+
+        # Visualize the confusion matrix
+        plt.figure(figsize=(6,4))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Control (0)", "Case (1)"], yticklabels=["Control (0)", "Case (1)"])
+        plt.xlabel("Predicted Label")
+        plt.ylabel("True Label")
+        plt.title("Confusion Matrix")
+        plt.show()
+
 
 if __name__ == "__main__":
     # Load data
@@ -510,3 +541,6 @@ if __name__ == "__main__":
 
     # Print model summary and weights
     model.print_model_summary()
+
+    # Plot confusion matrix
+    model.confusion_matrix_chart(y_test, X_test)
