@@ -152,6 +152,10 @@ def adjust_BMI(BMI, red_meat, processed_meat, diabetes, physical_activity, seden
     
     return BMI_adjustment
 
+def adjust_sedentary_activity(age, sedentary_activity):
+    if age > 60:
+        return sedentary_activity * 1.2
+
 
 def adjust_alcohol_consumption(alcohol_use, drinking_status, sex, age):
     if drinking_status == 0:  # Non-drinker
@@ -239,6 +243,14 @@ df['alcohol_use'] = df.apply(
         row['drinking_status'],
         row['sex'],
         row['age']     
+        ),
+        axis=1
+)
+
+df['sedentary_activity'] = df.apply(
+    lambda row: adjust_sedentary_activity(
+        row['age'],
+        row['sedentary_activity']
         ),
         axis=1
 )
